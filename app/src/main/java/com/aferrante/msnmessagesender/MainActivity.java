@@ -22,11 +22,19 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import androidx.work.Data;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
+
+import java.util.concurrent.TimeUnit;
+
 public class MainActivity extends Activity {
     private static final String PREFS = "sms_sender_preferences";
     private static final String DEFAULT_NUMBERS = "";
     private static final String DEFAULT_MESSAGE = "Buenos días";
-    private static final int MAX_RECIPIENTS = 50;
+    private static final int MAX_PER_BATCH = 50;
+    private static final int MAX_TOTAL_RECIPIENTS = 500;
+    private static final long BATCH_WAIT_MINUTES = 30L;
     private static final long SEND_DELAY_MS = 1800L;
     private static final int SMS_PERMISSION_REQUEST = 1001;
     private static final Pattern PERU_MOBILE_PATTERN = Pattern.compile(
@@ -70,9 +78,10 @@ public class MainActivity extends Activity {
             showMessage("Faltan destinatarios", "Agrega por lo menos un número de celular.");
             return;
         }
-        if (parsed.validNumbers.size() > MAX_RECIPIENTS) {
+        if (parsed.validNumbers.size() > MAX_TOTAL_RECIPIENTS) {
             showMessage("Demasiados destinatarios",
-                    "Esta versión permite hasta " + MAX_RECIPIENTS + " números por envío.");
+                    "Esta versión permite hasta " + MAX_TOTAL_RECIPIENTS
+                            + " números en una cola de envío.");
             return;
         }
         if (message.isEmpty()) {
@@ -83,10 +92,19 @@ public class MainActivity extends Activity {
         pendingRecipients = parsed.validNumbers;
         pendingMessage = message;
 
+        int batchCount = (parsed.validNumbers.size() + MAX_PER_BATCH - 1) / MAX_PER_BATCH;
+        String scheduleWarning = batchCount > 1
+                ? "\n\nAVISO: La lista se dividirá en " + batchCount
+                    + " bloques de máximo " + MAX_PER_BATCH
+                    + ". Después de cada bloque, la aplicación esperará por lo menos "
+                    + BATCH_WAIT_MINUTES + " minutos antes de continuar."
+                : "";
+
         new AlertDialog.Builder(this)
                 .setTitle("Confirmar envío")
                 .setMessage("Se enviará un SMS individual a " + parsed.validNumbers.size()
-                        + " destinatario(s).\n\nMensaje:\n" + message
+                        + " destinatario(s)." + scheduleWarning
+                        + "\n\nMensaje:\n" + message
                         + "\n\nSe aplicarán los cargos normales de tu operador.")
                 .setNegativeButton("Cancelar", null)
                 .setPositiveButton("Enviar", (dialog, which) -> requestPermissionOrSend())
@@ -130,14 +148,18 @@ public class MainActivity extends Activity {
         messageInput.setEnabled(false);
         statusText.setText("Preparando envío…");
 
+        int immediateCount = Math.min(MAX_PER_BATCH, recipients.size());
+        List<String> immediate = new ArrayList<>(recipients.subList(0, immediateCount));
+        List<String> deferred = new ArrayList<>(recipients.subList(immediateCount, recipients.size()));
+
         Handler handler = new Handler(Looper.getMainLooper());
-        sendNext(handler, recipients, message, 0, 0, new ArrayList<>());
+        sendNext(handler, immediate, deferred, message, 0, 0, new ArrayList<>());
     }
 
-    private void sendNext(Handler handler, List<String> recipients, String message,
-                          int index, int queued, List<String> failures) {
+    private void sendNext(Handler handler, List<String> recipients, List<String> deferred,
+                          String message, int index, int queued, List<String> failures) {
         if (index >= recipients.size()) {
-            finishSending(queued, failures);
+            finishSending(queued, failures, deferred, message);
             return;
         }
 
@@ -160,7 +182,7 @@ public class MainActivity extends Activity {
 
         int finalNextQueued = nextQueued;
         handler.postDelayed(
-                () -> sendNext(handler, recipients, message, index + 1, finalNextQueued, failures),
+                () -> sendNext(handler, recipients, deferred, message, index + 1, finalNextQueued, failures),
                 SEND_DELAY_MS
         );
     }
@@ -174,7 +196,8 @@ public class MainActivity extends Activity {
         return manager;
     }
 
-    private void finishSending(int queued, List<String> failures) {
+    private void finishSending(int queued, List<String> failures,
+                               List<String> deferred, String message) {
         sendButton.setEnabled(true);
         recipientsInput.setEnabled(true);
         messageInput.setEnabled(true);
@@ -185,8 +208,29 @@ public class MainActivity extends Activity {
         if (!failures.isEmpty()) {
             result += "\n\nNo se pudieron preparar:\n" + String.join("\n", failures);
         }
+        if (!deferred.isEmpty()) {
+            scheduleDeferredBatch(deferred, message);
+            result += "\n\nQuedan " + deferred.size()
+                    + " mensaje(s). El siguiente bloque se enviará después de esperar "
+                    + BATCH_WAIT_MINUTES + " minutos como mínimo.";
+        }
         statusText.setText(result);
-        showMessage("Proceso terminado", result);
+        showMessage(deferred.isEmpty() ? "Proceso terminado" : "Primer bloque terminado", result);
+    }
+
+    private void scheduleDeferredBatch(List<String> recipients, String message) {
+        Data data = new Data.Builder()
+                .putStringArray(SmsBatchWorker.KEY_RECIPIENTS, recipients.toArray(new String[0]))
+                .putString(SmsBatchWorker.KEY_MESSAGE, message)
+                .build();
+
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(SmsBatchWorker.class)
+                .setInputData(data)
+                .setInitialDelay(BATCH_WAIT_MINUTES, TimeUnit.MINUTES)
+                .addTag(SmsBatchWorker.WORK_TAG)
+                .build();
+
+        WorkManager.getInstance(this).enqueue(request);
     }
 
     private ParseResult parseRecipients(String raw) {
