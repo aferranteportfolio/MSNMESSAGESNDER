@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SMS Sender</string>
+    <string name="recipients_label">Números de celular</string>
+    <string name="recipients_hint">Un número por línea</string>
+    <string name="message_label">Mensaje</string>
+    <string name="message_hint">Escribe el mensaje</string>
+    <string name="send_button">Revisar y enviar</string>
+    <string name="status_ready">Listo para enviar</string>
+</resources>
