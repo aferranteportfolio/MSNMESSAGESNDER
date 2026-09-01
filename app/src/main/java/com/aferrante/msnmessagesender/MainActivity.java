@@ -1,6 +1,7 @@
 package com.aferrante.msnmessagesender;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -14,23 +15,18 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
     private static final String PREFS = "sms_sender_preferences";
     private static final String DEFAULT_NUMBERS = "";
     private static final String DEFAULT_MESSAGE = "Buenos días";
     private static final int MAX_RECIPIENTS = 50;
     private static final long SEND_DELAY_MS = 1800L;
+    private static final int SMS_PERMISSION_REQUEST = 1001;
 
     private EditText recipientsInput;
     private EditText messageInput;
@@ -39,18 +35,8 @@ public class MainActivity extends AppCompatActivity {
     private List<String> pendingRecipients;
     private String pendingMessage;
 
-    private final ActivityResultLauncher<String> permissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                if (granted && pendingRecipients != null) {
-                    beginSending(pendingRecipients, pendingMessage);
-                } else {
-                    statusText.setText("Permiso de SMS rechazado.");
-                    Toast.makeText(this, "La aplicación necesita permiso para enviar SMS.", Toast.LENGTH_LONG).show();
-                }
-            });
-
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -109,11 +95,27 @@ public class MainActivity extends AppCompatActivity {
                 .putString("message", pendingMessage)
                 .apply();
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+        if (checkSelfPermission(Manifest.permission.SEND_SMS)
                 == PackageManager.PERMISSION_GRANTED) {
             beginSending(pendingRecipients, pendingMessage);
         } else {
-            permissionLauncher.launch(Manifest.permission.SEND_SMS);
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS}, SMS_PERMISSION_REQUEST);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != SMS_PERMISSION_REQUEST) {
+            return;
+        }
+        if (grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                && pendingRecipients != null) {
+            beginSending(pendingRecipients, pendingMessage);
+        } else {
+            statusText.setText("Permiso de SMS rechazado.");
+            Toast.makeText(this, "La aplicación necesita permiso para enviar SMS.", Toast.LENGTH_LONG).show();
         }
     }
 
