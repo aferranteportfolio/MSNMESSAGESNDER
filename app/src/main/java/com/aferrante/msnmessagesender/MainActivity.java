@@ -2,8 +2,6 @@ package com.aferrante.msnmessagesender;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.app.PendingIntent;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -11,7 +9,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -30,7 +27,7 @@ import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
     private static final String PREFS = "sms_sender_preferences";
-    private static final String DEFAULT_NUMBERS = "967 695 669\n974 482 446\n973 094 952";
+    private static final String DEFAULT_NUMBERS = "";
     private static final String DEFAULT_MESSAGE = "Buenos días";
     private static final int MAX_RECIPIENTS = 50;
     private static final long SEND_DELAY_MS = 1800L;
