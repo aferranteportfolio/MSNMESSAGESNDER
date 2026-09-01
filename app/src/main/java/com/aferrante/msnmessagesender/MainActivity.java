@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
     private static final long SEND_DELAY_MS = 1800L;
     private static final int SMS_PERMISSION_REQUEST = 1001;
     private static final Pattern PERU_MOBILE_PATTERN = Pattern.compile(
-            "(?<!\\d)(?:\\+?51[\\s.-]*)?(9(?:[\\s.-]*\\d){8})(?!\\d)"
+            "(?:\\+?51[\\s.-]*)?(9(?:[\\s.-]*\\d){8})"
     );
 
     private EditText recipientsInput;
