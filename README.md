@@ -5,6 +5,7 @@ A small private Android application that sends one SMS message to an editable li
 ## Version 1
 
 - Recipient list and message are editable and saved only on the phone
+- Full Markdown tables can be pasted; formatting and empty cells are ignored
 - Default message: **Buenos días**
 - Peruvian mobile numbers are normalized to the `+51` format
 - Duplicate numbers are removed and invalid numbers are rejected
