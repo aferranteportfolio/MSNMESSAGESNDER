@@ -12,6 +12,8 @@ A small private Android application that sends one SMS message to an editable li
 - Confirmation is required before sending
 - Messages are spaced 1.8 seconds apart
 - Maximum of 50 unique recipients per batch
+- Larger lists are split into batches with a minimum 30-minute wait between them
+- Delayed batches are persisted with Android WorkManager and can continue after the app closes
 - Android requests SMS permission at runtime
 
 The app reports when Android has accepted an SMS for sending. Final network delivery still depends on the SIM, signal, balance, and mobile operator.
@@ -37,5 +39,6 @@ Open the repository folder as an existing Android project. Allow Gradle synchron
 - SMS charges and operator limits apply.
 - Only message recipients who have agreed to receive the messages.
 - The current release uses the phone's default SMS subscription.
+- Android battery management can delay a scheduled batch beyond 30 minutes; it will never intentionally start sooner.
 - Long messages can be billed as multiple SMS segments.
 - Recipient numbers are intentionally not stored in this public repository.
