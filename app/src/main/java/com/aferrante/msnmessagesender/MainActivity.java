@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "sms_sender_preferences";
@@ -27,6 +29,9 @@ public class MainActivity extends Activity {
     private static final int MAX_RECIPIENTS = 50;
     private static final long SEND_DELAY_MS = 1800L;
     private static final int SMS_PERMISSION_REQUEST = 1001;
+    private static final Pattern PERU_MOBILE_PATTERN = Pattern.compile(
+            "(?<!\\\\d)(?:\\\\+?51[\\\\s.-]*)?(9(?:[\\\\s.-]*\\\\d){8})(?!\\\\d)"
+    );
 
     private EditText recipientsInput;
     private EditText messageInput;
@@ -188,16 +193,26 @@ public class MainActivity extends Activity {
         Set<String> unique = new LinkedHashSet<>();
         List<String> invalid = new ArrayList<>();
 
-        for (String entry : raw.split("[\\n,;]+")) {
-            String trimmed = entry.trim();
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
             if (trimmed.isEmpty()) {
                 continue;
             }
-            String normalized = normalizePeruvianMobile(trimmed);
-            if (normalized == null) {
+
+            Matcher matcher = PERU_MOBILE_PATTERN.matcher(trimmed);
+            boolean foundNumber = false;
+            while (matcher.find()) {
+                String normalized = normalizePeruvianMobile(matcher.group());
+                if (normalized != null) {
+                    unique.add(normalized);
+                    foundNumber = true;
+                }
+            }
+
+            // Markdown table borders and empty cells are intentionally ignored.
+            // A line containing digits but no valid mobile number is reported.
+            if (!foundNumber && trimmed.matches(".*\\d.*")) {
                 invalid.add(trimmed);
-            } else {
-                unique.add(normalized);
             }
         }
         return new ParseResult(new ArrayList<>(unique), invalid);
